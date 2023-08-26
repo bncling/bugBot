@@ -2,6 +2,7 @@
 #define BITBOARDS_H
 
 using ulong = unsigned long long int;
+using ushort = unsigned short int;
 
 // bunch of functions copied from Sebastian Lague's challenge
 // https://seblague.github.io/chess-coding-challenge/documentation/

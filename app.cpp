@@ -1,15 +1,40 @@
 #include <SDL.h>
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include "main/all_headers.h"
 #include "includes/GUISquare.h"
 #include "includes/GUIPiece.h"
 
 const int SQUARE_SIZE = 100;
 
+class Timer
+{
+private:
+    // Type aliases to make accessing nested type easier
+    using Clock = std::chrono::steady_clock;
+    using Second = std::chrono::duration<double, std::milli>;
+
+    std::chrono::time_point<Clock> m_beg{ Clock::now() };
+
+public:
+
+    void reset()
+    {
+        m_beg = Clock::now();
+    }
+
+    double elapsed() const
+    {
+        return std::chrono::duration_cast<Second>(Clock::now() - m_beg).count();
+    }
+};
+
 int main() {
 
 	int boardSize = 8 * SQUARE_SIZE;
+
+
 
 	/*
 	// testing bitboards
@@ -32,6 +57,10 @@ int main() {
 	std::cout << testSquare.Name << " " << testSquare.File << " " << testSquare.Rank << std::endl; 
 	*/
 
+	/*
+	ulong myBits[2] = {1ULL, 2ULL};
+	std::cout << myBits[false] << " " << myBits[true] << std::endl;*/
+
 
 	// create the board of squares to be displayed
 	std::vector<GUISquare> displayBoard;
@@ -41,15 +70,35 @@ int main() {
 	}
 
 	// create a board object initialized to the starting position
-	Board board("rn1qk2r/pb1ppp2/2p1Pbpn/P5NQ/1pP4P/5P2/1P1P2P1/RNB1KB1R b KQkq c3 0 11");
+	//Board board("r4rk1/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R4RK1 w - - 2 2");
+	Board board("rnbqkbnr/pppp1ppp/8/8/P3p3/4R3/1PPPPPPP/1NBQKBNR b Kkq - 1 3");
 
+	/*std::cout << board.isAttacked(30, true) << std::endl;
+	std::cout << board.isAttacked(30, false) << std::endl;
+	std::cout << board.isAttacked(56, true) << std::endl;
+	std::cout << board.isAttacked(56, false) << std::endl;
+	std::cout << board.isAttacked(18, true) << std::endl;
+	std::cout << board.isAttacked(18, false) << std::endl;*/
+
+	
+	Timer t;
 	std::vector<Move> legalMoves = board.getLegalMoves();
-	std::cout << "--------------------" << std::endl;
+	std::cout << "Took " << t.elapsed() << " milliseconds." << std::endl;
+
+	/*for (int i = 0; i < legalMoves.size(); i++)
+	{
+		std::cout << legalMoves.at(i) << std::endl;
+	}*/
+
+	//std::vector<Move> legalMoves = board.getLegalMoves();
+
+	/*std::cout << "--------------------" << std::endl;
 	for (int i = 0; i < legalMoves.size(); i++)
 	{
 		std::cout << legalMoves.at(i) << std::endl;
 	}
-	std::cout << "--------------------" << std::endl;
+	std::cout << "--------------------" << std::endl;*/
+
 
 	// get an array and fill it with the Board method
 	int boardArray[64];
@@ -73,7 +122,7 @@ int main() {
 	int pieceSquareSelected = 64;
 	std::string dragPath = "";
 	int pieceTypeSelected = 0;
-	ulong pieceAttacksBitboard;
+	ulong pieceAttacksBitboard = 0;
 
 	// rect for dragging
 	SDL_Rect draggableRect;
@@ -84,11 +133,12 @@ int main() {
 
 	// dummy move to change when moves are played
 	Move playedMove;
+	playedMove.Reset();
 
 	// create the display window
 	SDL_Window* window = nullptr;
 	window = SDL_CreateWindow("Chess++",
-		150,
+		300,
 		0,
 		boardSize,
 		boardSize,
@@ -115,6 +165,27 @@ int main() {
 				case SDL_QUIT:
 				{
 					gameRunning = false;
+					break;
+				}
+
+				
+				case SDL_KEYDOWN:
+				{
+					board.Undo();
+
+					// use the internal board rep to update the array guiding the external rep
+					board.updateDrawingArray();
+					board.fillBoardArray(boardArray);
+
+					legalMoves = board.getLegalMoves();
+					/*
+					for (int i = 0; i < legalMoves.size(); i++)
+					{
+						std::cout << legalMoves.at(i) << std::endl;
+					}
+					std::cout << "--------------------" << std::endl;*/
+
+
 					break;
 				}
 
@@ -151,15 +222,17 @@ int main() {
 
 								for (int j = 0; j < legalMoves.size(); j++)
 								{
-									if (legalMoves.at(j).StartSquare == pieceSquareSelected && legalMoves.at(j).TargetSquare == i)
+									if (legalMoves.at(j).getStartSquare() == pieceSquareSelected && legalMoves.at(j).getTargetSquare() == i)
 									{
 										moveIsLegal = true;
 										playedMove = legalMoves.at(j);
-										if (playedMove.IsPromotion)
+										if (playedMove.isPromotion())
 										{
-											std::cin >> playedMove.PromotionPieceType;
+											// for now just default to queen promotion
+											playedMove.moveCode |= (7 << 13);
+
+											//std::cin >> playedMove.PromotionPieceType;
 										}
-										std::cout << playedMove << std::endl;
 										break;
 									}
 								}
@@ -187,19 +260,52 @@ int main() {
 
 								if (moveIsLegal)
 								{
+									//std::cout << playedMove.moveCode << std::endl;
 									board.MakeMove(playedMove);
+
+									// use the internal board rep to update the array guiding the external rep
+									board.updateDrawingArray();
+									board.fillBoardArray(boardArray);
+
+									//std::cout << board.isInCheck() << std::endl;
+
+									legalMoves = board.getLegalMoves();
+
+									if (board.isDrawn() != 0)
+									{
+										std::cout << "Game over: ";
+
+										switch (board.isDrawn())
+										{
+											case 1:
+											{
+												std:: cout << "no legal moves (stalemate)" << std::endl;
+												break;
+											}
+
+											case 2:
+											{
+												std:: cout << "insufficient material" << std::endl;
+												break;
+											}
+
+											case 3:
+											{
+												std:: cout << "threefold repetition" << std::endl;
+												break;
+											}
+
+											case 4:
+											{
+												std:: cout << "fifty move rule" << std::endl;
+												break;
+											}
+										}
+									}
 								}
 
-								// reset the Move instance
-								playedMove.Reset();
-
-								// use the internal board rep to update the array guiding the external rep
-								board.updateDrawingArray();
-								board.fillBoardArray(boardArray);
-
-								legalMoves = board.getLegalMoves();
-								/*
-								for (int i = 0; i < legalMoves.size(); i++)
+						
+								/*for (int i = 0; i < legalMoves.size(); i++)
 								{
 									std::cout << legalMoves.at(i) << std::endl;
 								}
@@ -208,10 +314,6 @@ int main() {
 								break;
 							}
 						}
-
-						// reset everything
-						// reset the Move instance
-						playedMove.Reset();
 
 						// use the internal board rep to update the array guiding the external rep
 						board.updateDrawingArray();
@@ -246,7 +348,7 @@ int main() {
 								{
 									pieceTypeSelected = pieceBoard.at(i).getDrawType();
 
-									if ((board.isWhiteToMove() && (pieceTypeSelected <= 6)) || !board.isWhiteToMove() && (pieceTypeSelected > 6))
+									if (!board.gameIsOver() && ((board.isWhiteToMove() && (pieceTypeSelected <= 6)) || !board.isWhiteToMove() && (pieceTypeSelected > 6)))
 									{
 										pieceSquareSelected = i;
 										pieceAttacksBitboard = board.moveBoardFromSquare(i);

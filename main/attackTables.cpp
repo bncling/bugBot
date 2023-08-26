@@ -39,7 +39,7 @@ int main()
 		attacks &= (A_FILE << file);
 
 		//std::cout << std::bitset<64>(attacks) << std::endl;
-		std::cout << attacks << "ULL," << std::endl;
+		//std::cout << attacks << "ULL," << std::endl;
 	}
 
 	// black pawn forwards
@@ -196,7 +196,88 @@ int main()
 		//std::cout << attacks << "ULL," << std::endl;
 	}
 
+	/*
+	// get rays between two pieces, first of which not included in resulting bitboard
+	ulong ray;
+	ulong first;
 	ulong mask;
+
+	// bishop rays
+	std::cout << "const ulong RAYS[64][64] {" << std::endl;
+
+	for (int i = 0; i < 64; i++)
+	{
+		std::cout << "\t{" << std::endl;
+		for (int j = 0; j < 64; j++)
+		{
+			first = Constants::BISHOP_ATTACKS[i][0];
+			if (SquareIsSet(first, j))
+			{
+				//std::cout << "they agree" << std::endl;
+				ray = (first & Constants::BISHOP_ATTACKS[j][0]) | (1ULL << j);
+				mask = (-1ULL) << std::min(i,j);
+				ray &= mask;
+				mask = (-1ULL) >> (63 - std::max(i,j));
+				ray &= mask;
+			}
+			else
+			{
+				ray = 0;
+			}
+
+			if (ray == 0)
+			{
+				first = Constants::ROOK_ATTACKS[i][0];
+				if (SquareIsSet(first, j))
+				{
+					ray = (first & Constants::ROOK_ATTACKS[j][0]) | (1ULL << j);
+					mask = (-1ULL) << std::min(i,j);
+					ray &= mask;
+					mask = (-1ULL) >> (63 - std::max(i,j));
+					ray &= mask;
+				}
+				else
+				{
+					ray = 0;
+				}
+			}
+			//std::cout << i << " " << j << " " << std::bitset<64>(ray) << std::endl;
+			std::cout << "\t\t" << ray << "ULL," << std::endl;
+		}
+		std::cout << "\t}," << std::endl;
+	}
+
+	// rook rays
+	std::cout << "};" << std::endl; */
+	/*\n\nconst ulong ROOK_RAYS[64][64] {" << std::endl;
+
+	for (int i = 0; i < 64; i++)
+	{
+		std::cout << "\t{" << std::endl;
+		for (int j = 0; j < 64; j++)
+		{
+			first = Constants::ROOK_ATTACKS[i][0];
+			if (SquareIsSet(first, j))
+			{
+				ray = (first & Constants::ROOK_ATTACKS[j][0]) | (1ULL << j);
+				mask = (-1ULL) << std::min(i,j);
+				ray &= mask;
+				mask = (-1ULL) >> (63 - std::max(i,j));
+				ray &= mask;
+			}
+			else
+			{
+				ray = 0;
+			}
+			//std::cout << i << " " << j << " " << std::bitset<64>(ray) << std::endl;
+			std::cout << "\t\t" << ray << "ULL," << std::endl;
+		}
+		std::cout << "\t}," << std::endl;
+	}
+
+	std::cout << "};" << std::endl;*/
+
+
 	ulong blockers;
 	ulong moves;
 
@@ -712,4 +793,52 @@ int main()
 	}
 
 	std::cout << "};" << std::endl;*/
+
+
+	// random number generation
+	std::random_device rd;     //Get a random seed from the OS entropy device, or whatever
+	std::mt19937_64 gen(rd()); //Use the 64-bit Mersenne Twister 19937 generator
+	                           //and seed it with entropy.
+
+	//Define the distribution, by default it goes from 0 to MAX(unsigned long long)
+	//or what have you.
+	std::uniform_int_distribution<unsigned long long> distr(0,0xFFFFFFFFFFFFFFFF);
+
+	// generate Zobrist hash random nums
+	std::cout << distr(gen) << std::endl;
+
+	std::cout << "const ulong PIECE_SQUARE_ZOBRISTS[12][64] = {" << std::endl;
+
+	for (int i = 0; i < 12; i++)
+	{
+		std::cout << "\t{" << std::endl;
+
+		for (int j = 0; j < 64; j++)
+		{
+			std::cout << "\t\t" << distr(gen) << "ULL," << std::endl;
+		}
+
+		std::cout << "\t}," << std::endl;
+	}
+
+	std::cout << "};\nconst ulong CASTLE_ZOBRISTS[16] = {" << std::endl;
+
+	for (int i = 0; i < 16; i++)
+	{
+		std::cout << "\t" << distr(gen) << "ULL," << std::endl;
+	}
+
+	std::cout << "};\nconst ulong EN_PASSANT_FILE_ZOBRISTS[8] = {" << std::endl;
+
+	for (int i = 0; i < 8; i++)
+	{
+		std::cout << "\t" << distr(gen) << "ULL," << std::endl;
+	}
+
+	std::cout << "};\nconst ulong WHITE_ZOBRIST = " << distr(gen) << "ULL;" << std::endl;
+
+
+
+
+
 }

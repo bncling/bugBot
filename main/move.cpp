@@ -19,14 +19,20 @@ bool Move::Equals(Move otherMove)
 
 void Move::Reset()
 {
+	moveCode = 0U;
+
 	StartSquare = 64;
 	TargetSquare = 64;
+
+	PriorEnPassantSquare = 64;
 
 	IsCapture = false;
 	IsCastles = false;
 	IsPromotion = false;
 	IsEnPassant = false;
 	IsDoublePawnPush = false;
+	LosesKingside = false;
+	LosesQueenside = false;
 
 	MovePieceType = 0;
 	CapturePieceType = 0;
@@ -50,27 +56,11 @@ std::string intToAlg(int index)
 	return algebraic;
 }
 
-std::ostream& operator<<(std::ostream& os, const Move rhsObj)
+std::ostream& operator<<(std::ostream& os, Move rhsObj)
 {
-	int promType = rhsObj.PromotionPieceType;
-	os << intToAlg(rhsObj.StartSquare) << intToAlg(rhsObj.TargetSquare);
-	if (promType != 0)
-	{
-		if (promType > 6)
-		{
-			promType -= 6;
-		}
-
-		promType -= 2;
-		os << PROMOTIONS[promType];
-	}
-	else
-	{
-		os << " ";
-	}
-	os << " (" << std::setw(2) << rhsObj.MovePieceType + 1 << " " << std::setw(2) << rhsObj.CapturePieceType;
-	os << " " << std::setw(2) << rhsObj.PromotionPieceType << " | " << rhsObj.IsCapture;
-	os << " " << rhsObj.IsCastles << " " << rhsObj.IsEnPassant << " " << rhsObj.IsDoublePawnPush << " )";
+	os << intToAlg(rhsObj.getStartSquare()) << intToAlg(rhsObj.getTargetSquare());
+	os << " (" << rhsObj.isCapture() << " " << rhsObj.isCastles() << " " << rhsObj.isEnPassant() << " " << rhsObj.isDoublePawnPush() << ")";
+	os << " " << std::bitset<16>(rhsObj.moveCode);
 
 	return os;
 }
