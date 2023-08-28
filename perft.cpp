@@ -4,27 +4,7 @@
 #include <iomanip>
 #include "main/all_headers.h"
 
-class Timer
-{
-private:
-    // Type aliases to make accessing nested type easier
-    using Clock = std::chrono::steady_clock;
-    using Second = std::chrono::duration<double, std::ratio<1>>;
 
-    std::chrono::time_point<Clock> m_beg{ Clock::now() };
-
-public:
-
-    void reset()
-    {
-        m_beg = Clock::now();
-    }
-
-    double elapsed() const
-    {
-        return std::chrono::duration_cast<Second>(Clock::now() - m_beg).count();
-    }
-};
 
 ulong plainPerft(int depth, Board& board)
 {
@@ -287,7 +267,7 @@ void fullSuite(std::vector<std::string> positions, std::vector<int> depths)
 		{
 			results = perft(i + 1, board);
 			std::cout << std::setw(4) << i + 1 << std::setw(17) << results.at(0);
-			std::cout << std::setw(14) << (static_cast<double>(results.at(0)) / t.elapsed());
+			std::cout << std::setw(14) << 1000 * (static_cast<double>(results.at(0)) / t.elapsed());
 			std::cout << std::setw(16) << results.at(1) << std::setw(15) << results.at(2);
 			std::cout << std::setw(15) << results.at(3) << std::setw(15) << results.at(4) << std::endl;
 		}

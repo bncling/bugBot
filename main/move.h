@@ -14,22 +14,8 @@ struct Move
 
 	ushort moveCode = 0U;
 
-	int StartSquare;
-	int TargetSquare;
-
-	int PriorEnPassantSquare;
-
-	bool IsCapture;
-	bool IsCastles;
-	bool IsPromotion;
-	bool IsEnPassant;
-	bool IsDoublePawnPush;
-	bool LosesKingside;
-	bool LosesQueenside;
-
 	int MovePieceType;
 	int CapturePieceType;
-	int PromotionPieceType;
 
 	bool Equals(Move otherMove);
 

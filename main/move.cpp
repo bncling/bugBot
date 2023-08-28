@@ -8,35 +8,15 @@ const char RANKS[8] = { '1', '2', '3', '4', '5', '6', '7', '8' };
 
 bool Move::Equals(Move otherMove)
 {
-	return (
-		StartSquare == otherMove.StartSquare &&
-		TargetSquare == otherMove.TargetSquare && 
-		CapturePieceType == otherMove.CapturePieceType &&
-		PromotionPieceType == otherMove.PromotionPieceType &&
-		MovePieceType == otherMove.MovePieceType
-	);
+	return moveCode == otherMove.moveCode;
 }
 
 void Move::Reset()
 {
 	moveCode = 0U;
 
-	StartSquare = 64;
-	TargetSquare = 64;
-
-	PriorEnPassantSquare = 64;
-
-	IsCapture = false;
-	IsCastles = false;
-	IsPromotion = false;
-	IsEnPassant = false;
-	IsDoublePawnPush = false;
-	LosesKingside = false;
-	LosesQueenside = false;
-
 	MovePieceType = 0;
 	CapturePieceType = 0;
-	PromotionPieceType = 0;
 }
 
 std::string intToAlg(int index)
@@ -60,7 +40,7 @@ std::ostream& operator<<(std::ostream& os, Move rhsObj)
 {
 	os << intToAlg(rhsObj.getStartSquare()) << intToAlg(rhsObj.getTargetSquare());
 	os << " (" << rhsObj.isCapture() << " " << rhsObj.isCastles() << " " << rhsObj.isEnPassant() << " " << rhsObj.isDoublePawnPush() << ")";
-	os << " " << std::bitset<16>(rhsObj.moveCode);
+	os << " " << std::bitset<16>(rhsObj.moveCode) << " " << rhsObj.MovePieceType << " " << rhsObj.CapturePieceType;
 
 	return os;
 }

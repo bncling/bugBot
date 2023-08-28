@@ -133,6 +133,17 @@ public:
 
 	bool gameIsOver();
 
+	int getKingSquare(bool white);
+
+	void Reset(std::string fen);
+
+	int scoreMaterial();
+	int pieceSquareScore();
+
+	bool attackedByEnemyPawns(int square);
+
+	//bool isRepetition();
+
 	//std::string getFenString();
 };
 

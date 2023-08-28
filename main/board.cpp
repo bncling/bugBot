@@ -77,6 +77,14 @@ Board::Board()
 
 Board::Board(std::string fen)
 {
+	castlingRights.clear();
+	enPassantSquares.clear();
+	capturedPieces.clear();
+	moveHistory.clear();
+	zobristHistory.clear();
+	gamePhases.clear();
+	moveCountsToFifty.clear();
+
 	fenString = fen;
 
 	/*whiteKingside = false;
@@ -219,13 +227,15 @@ Board::Board(std::string fen)
 	if (enPassantSquare != 64) zobristHistory.back() ^= Constants::EN_PASSANT_FILE_ZOBRISTS[enPassantSquare % 8];
 
 	// add this position to the repetition table, using lowest 14 bits as index
-	repetitionTable[zobristHistory.back() & 16383]++;
+	//repetitionTable[zobristHistory.back() & 16383]++;
 
 	//std::cout << zobristHistory.back() << std::endl;
 
 	//std::cout << gamePhases.back() << std::endl;
 
 	updateAttacks();
+
+	getLegalMoves();
 }
 
 ulong Board::getAttacks(int attackingPiece)
@@ -398,6 +408,8 @@ void Board::getPawnMoves(bool capsOnly)
 	ulong candidateTargets = 0;
 	ulong possibleSquares = pushMask | captureMask;
 
+	toPlay.MovePieceType = 0;
+
 	// deal with en passants first
 	int candidatePassant = enPassantSquares.back();
 	if ((candidatePassant != 64) && (SquareIsSet(possibleSquares, candidatePassant) || SquareIsSet(possibleSquares, (candidatePassant + (whiteToMove ? 8 : -8)))))
@@ -492,6 +504,8 @@ void Board::getPawnMoves(bool capsOnly)
 			thisTargetSquare = ClearAndGetLSB(candidateCaptures);
 			toPlay.moveCode |= thisTargetSquare << 6;
 
+			toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+
 			if (promotion)
 			{
 				for (int i = 7; i > 3; i--)
@@ -548,6 +562,8 @@ void Board::getKnightMoves(bool capsOnly)
 	ulong thisStartSquare, thisTargetSquare, candidateTargets;					 // = -1ULL when not in check
 	ulong possibleSquares = capsOnly ? colorPieces[!whiteToMove] & captureMask : pushMask | captureMask;
 
+	toPlay.MovePieceType = 1;
+
 	while (pieceBitboard != 0)
 	{
 		thisStartSquare = ClearAndGetLSB(pieceBitboard);
@@ -562,7 +578,12 @@ void Board::getKnightMoves(bool capsOnly)
 			toPlay.moveCode |= thisTargetSquare << 6;
 
 			// check if this is a capture
-			toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+			if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+			{
+				toPlay.moveCode |= 0b0001000000000000;
+				toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+			}
+			//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 			testMoves.push_back(toPlay);
 		}
@@ -591,7 +612,13 @@ void Board::getSlidingMoves(bool capsOnly)
 			toPlay.moveCode |= thisTargetSquare << 6;
 
 			// check if this is a capture
-			toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+			if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+			{
+				toPlay.moveCode |= 0b0001000000000000;
+				toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+				toPlay.MovePieceType = getPieceTypeAtSquare(thisStartSquare, 6 * (!whiteToMove)) - 1 - 6 * (!whiteToMove);
+			}
+			//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 			testMoves.push_back(toPlay);
 		}
@@ -615,7 +642,13 @@ void Board::getSlidingMoves(bool capsOnly)
 			toPlay.moveCode |= thisTargetSquare << 6;
 
 			// check if this is a capture
-			toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+			if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+			{
+				toPlay.moveCode |= 0b0001000000000000;
+				toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+				toPlay.MovePieceType = getPieceTypeAtSquare(thisStartSquare, 6 * (!whiteToMove)) - 1 - 6 * (!whiteToMove);
+			}
+			//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 			testMoves.push_back(toPlay);
 		}
@@ -625,6 +658,8 @@ void Board::getSlidingMoves(bool capsOnly)
 
 void Board::getKingMoves(bool capsOnly)
 {
+	toPlay.MovePieceType = 5;
+
 	// castling moves first
 	if (!(isInCheck() || capsOnly))
 	{
@@ -679,7 +714,12 @@ void Board::getKingMoves(bool capsOnly)
 			toPlay.moveCode |= thisTargetSquare << 6;
 
 			// check if this is a capture
-			toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+			if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+			{
+				toPlay.moveCode |= 0b0001000000000000;
+				toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+			}
+			//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 			testMoves.push_back(toPlay);
 		}
@@ -740,6 +780,8 @@ void Board::getPinnedMoves(bool capsOnly)
 					case 1:
 					case 7:
 					{
+						toPlay.MovePieceType = 0;
+
 						SetSquare(pinnedPawns, pinnedSquare);
 
 						// annoying en passant things
@@ -787,6 +829,10 @@ void Board::getPinnedMoves(bool capsOnly)
 								toPlay.moveCode |= thisTargetSquare << 6;
 								toPlay.moveCode |= pinnedSquare;
 
+								if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+
+								toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+
 								testMoves.push_back(toPlay);
 							}
 						}
@@ -825,7 +871,9 @@ void Board::getPinnedMoves(bool capsOnly)
 
 					case 3:
 					case 9:
-					{
+					{	
+						toPlay.MovePieceType = 2;
+
 						SetSquare(pinnedBishops, pinnedSquare);
 						possibleSquares &= pinRay;
 
@@ -841,7 +889,12 @@ void Board::getPinnedMoves(bool capsOnly)
 							toPlay.moveCode |= thisTargetSquare << 6;
 
 							// check if this is a capture
-							toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+							if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+							{
+								toPlay.moveCode |= 0b0001000000000000;
+								toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+							}
+							//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 							testMoves.push_back(toPlay);
 						}
@@ -852,6 +905,8 @@ void Board::getPinnedMoves(bool capsOnly)
 					case 4:
 					case 10:
 					{
+						toPlay.MovePieceType = 3;
+
 						SetSquare(pinnedRooks, pinnedSquare);
 						possibleSquares &= pinRay;
 
@@ -867,7 +922,12 @@ void Board::getPinnedMoves(bool capsOnly)
 							toPlay.moveCode |= thisTargetSquare << 6;
 
 							// check if this is a capture
-							toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+							if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+							{
+								toPlay.moveCode |= 0b0001000000000000;
+								toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+							}
+							//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 							testMoves.push_back(toPlay);
 						}
@@ -878,6 +938,8 @@ void Board::getPinnedMoves(bool capsOnly)
 					case 5:
 					case 11:
 					{
+						toPlay.MovePieceType = 4;
+
 						SetSquare(pinnedQueens, pinnedSquare);
 						possibleSquares &= pinRay;
 
@@ -897,7 +959,12 @@ void Board::getPinnedMoves(bool capsOnly)
 							toPlay.moveCode |= thisTargetSquare << 6;
 
 							// check if this is a capture
-							toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
+							if (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare))
+							{
+								toPlay.moveCode |= 0b0001000000000000;
+								toPlay.CapturePieceType = getPieceTypeAtSquare(thisTargetSquare, 6 * whiteToMove) - 1 - 6 * whiteToMove;
+							}
+							//toPlay.moveCode |= (SquareIsSet(colorPieces[!whiteToMove], thisTargetSquare) << 12);
 
 							testMoves.push_back(toPlay);
 						}
@@ -970,10 +1037,12 @@ std::vector<Move> Board::getLegalMoves(bool capsOnly)
 		if (kingInCheck(whiteToMove))
 		{
 			checkmate = 2 * whiteToMove - 1;
+			gameOver = true;
 		}
 		else
 		{
 			stalemate = true;
+			gameOver = true;
 		}
 	}
 
@@ -2090,15 +2159,31 @@ void Board::MakeMove(Move toMake)
 	//std::cout << "changing Zobrist -- side to move" << std::endl;
 
 	// add position to repetition table
-	repetitionTable[zobristHistory.back() & 16383]++;
+	//repetitionTable[zobristHistory.back() & 16383]++;
 
-	if (repetitionTable[zobristHistory.back() & 16383] == 3) threefoldRep = true;
+	/*if (repetitionTable[zobristHistory.back() & 16383] == 3) 
+	{
+		threefoldRep = true;
+		gameOver = true;
+	}*/
 
-	if (moveCountsToFifty.back() == 50) fiftyMoves = true;
+	if (moveCountsToFifty.back() == 50) 
+	{
+		fiftyMoves = true;
+		gameOver = true;
+	}
 
-	if (gamePhases.back() < 2 && pieceBitboards[0] == 0 && pieceBitboards[6] == 0) insufficientMaterial = true;
+	if (gamePhases.back() < 2 && pieceBitboards[0] == 0 && pieceBitboards[6] == 0) 
+	{
+		insufficientMaterial = true;
+		gameOver = true;
+	}
 
-	//std::cout << gamePhases.back() << std::endl;
+	/*std::cout << "----" << std::endl;
+	for (int i = 0; i < moveHistory.size(); i++)
+	{
+		std::cout << moveHistory.at(i) << " " << repetitionTable[zobristHistory.at(i) & 16383] << std::endl;
+	}*/
 }
 
 void Board::Undo()
@@ -2188,11 +2273,16 @@ void Board::Undo()
 		moveCountsToFifty.pop_back();
 		gamePhases.pop_back();
 
-		// before popping end of zobrist history, decrement position counter in repetition table
-		repetitionTable[zobristHistory.back() & 16383]--;
-		zobristHistory.pop_back();
+		gameOver = false;
+		checkmate = 0;
+		stalemate = false;
+		insufficientMaterial = false;
+		fiftyMoves = false;
 
-		//std::cout << repetitionTable[7053] << std::endl;
+		/*// before popping end of zobrist history, decrement position counter in repetition table
+		repetitionTable[zobristHistory.back() & 16383]--;
+		std::cout << repetitionTable[zobristHistory.back() & 16383] << std::endl;
+		zobristHistory.pop_back();*/
 
 		//std::cout << gamePhases.back() << std::endl;
 	}
@@ -2557,6 +2647,11 @@ bool Board::isBlackPiece(int index)
 	return SquareIsSet(colorPieces[0], index);
 }
 
+bool Board::attackedByEnemyPawns(int square)
+{
+	return SquareIsSet(attacks[6 * whiteToMove], square);
+}
+
 bool Board::isWhiteToMove()
 {
 	return whiteToMove;
@@ -2596,5 +2691,238 @@ int Board::isCheckmate()
 
 bool Board::gameIsOver()
 {
-	return ((isDrawn() != 0) || (isCheckmate() != 0));
+	return gameOver;
+}
+
+/*bool Board::isRepetition()
+{
+	return (repetitionTable[zobristHistory.back() & 16383] > 1);
+}*/
+
+int Board::getKingSquare(bool white)
+{
+	ulong kingBoard = pieceBitboards[6 * (!white) + 5];
+	return ClearAndGetLSB(kingBoard);
+}
+
+void Board::Reset(std::string fen)
+{
+	castlingRights.clear();
+	enPassantSquares.clear();
+	capturedPieces.clear();
+	moveHistory.clear();
+	zobristHistory.clear();
+	gamePhases.clear();
+	moveCountsToFifty.clear();
+
+	for (int i = 0; i < 12; i++)
+	{
+		pieceBitboards[i] = 0ULL;
+	}
+
+	colorPieces[0] = 0ULL;
+	colorPieces[1] = 0ULL;
+
+	/*for (int i = 0; i < 12384; i++)
+	{
+		repetitionTable[i] = 0;
+	}*/
+
+	allPieces = 0ULL;
+	colorAttacks[0] = 0ULL;
+	colorAttacks[1] = 0ULL;
+
+	fenString = fen;
+
+	/*whiteKingside = false;
+	whiteQueenside = false;
+	blackKingside = false;
+	blackQueenside = false;*/
+
+	ushort canCastle = 0;
+
+	std::string enPassantString;
+
+	zobristHistory.push_back(0ULL);
+
+	gameOver = false;
+
+	stalemate = false;
+	insufficientMaterial = false;
+	threefoldRep = false;
+	fiftyMoves = false;
+
+	moveCountsToFifty.push_back(0);
+
+	gamePhases.push_back(0);
+
+	checkmate = 0; // no side has been checkmated
+
+	int index = 0;
+	int section = 0;
+	for (int i = 0; i < fen.size(); i++)
+	{
+		if (fen[i] == ' ')
+		{
+			if (section > 2) break;
+			section++;
+		} else {
+			switch (section)
+			{
+				// parsing pieces on the board
+				case 0:
+				{
+					int possiblyNumeric = fen[i] - '0';
+					if (possiblyNumeric > 0 && possiblyNumeric < 9)
+					{
+						index += possiblyNumeric;
+					} else if (fen[i] != '/') {
+						int pieceCode;
+
+						for (int j = 0; j < 12; j++)
+						{
+							if (fen[i] == charList[j])
+							{
+								pieceCode = j + 1;
+								break;
+							}
+						}
+
+						forDrawing[index] = pieceCode;
+
+						SetSquare(pieceBitboards[pieceCode - 1], index);
+						zobristHistory.back() ^= Constants::PIECE_SQUARE_ZOBRISTS[pieceCode - 1][index];
+
+						gamePhases.back() += Constants::PIECE_PHASES[pieceCode - 1];
+
+						index++;
+					}
+
+					break;
+				}
+
+				// parsing side to move
+				case 1:
+				{
+					whiteToMove = (fen[i] == 'w');
+					if (whiteToMove) zobristHistory.back() ^= Constants::WHITE_ZOBRIST;
+					break;
+				}
+
+				// parsing castling rights
+				case 2:
+				{
+					switch (fen[i])
+					{
+						case 'K':
+						{
+							//whiteKingside = true;
+							canCastle |= 1U;
+							break;
+						}
+
+						case 'Q':
+						{
+							//whiteQueenside = true;
+							canCastle |= 2U;
+							break;
+						}
+
+						case 'k':
+						{
+							//blackKingside = true;
+							canCastle |= 4U;
+							break;
+						}
+
+						case 'q':
+						{
+							//blackQueenside = true;
+							canCastle |= 8U;
+							break;
+						}
+					}
+
+					break;
+				}
+
+				// parsing en passant moves
+				case 3:
+				{
+					enPassantString += fen[i];
+					break;
+				}
+			}
+		}
+	}
+
+	for (int i = 0; i < 6; i++)
+	{
+		//whitePieces |= pieceBitboards[i];
+		colorPieces[1] |= pieceBitboards[i];
+		//blackPieces |= pieceBitboards[i + 6];
+		colorPieces[0] |= pieceBitboards[i + 6];
+	}
+
+	allPieces = colorPieces[0] | colorPieces[1];
+
+	castlingRights.push_back(canCastle);
+	zobristHistory.back() ^= Constants::CASTLE_ZOBRISTS[castlingRights.back()];
+
+	enPassantSquare = algToInt(enPassantString);
+	enPassantSquares.push_back(algToInt(enPassantString));
+	if (enPassantSquare != 64) zobristHistory.back() ^= Constants::EN_PASSANT_FILE_ZOBRISTS[enPassantSquare % 8];
+
+	// add this position to the repetition table, using lowest 14 bits as index
+	//repetitionTable[zobristHistory.back() & 16383]++;
+
+	//std::cout << zobristHistory.back() << std::endl;
+
+	//std::cout << gamePhases.back() << std::endl;
+
+	updateAttacks();
+
+	getLegalMoves();
+}
+
+int Board::scoreMaterial()
+{
+	int material = 0;
+
+	for (int i = 0; i < 6; i++)
+	{
+		material += Constants::PIECE_VALUES[i] * (NumSetBits(pieceBitboards[i]) - NumSetBits(pieceBitboards[i + 6]));
+	}
+
+	return material;
+}
+
+int Board::pieceSquareScore()
+{
+	int mgscore = 0;
+	int escore = 0;
+	int phase = gamePhases.back();
+	int square;
+	ulong thisBoard;
+
+	for (int i = 0; i < 6; i++)
+	{
+		thisBoard = pieceBitboards[i];
+		while (thisBoard != 0)
+		{
+			square = ClearAndGetLSB(thisBoard);
+			mgscore += Constants::MIDDLEGAME_PSTS[i][square];
+			escore += Constants::ENDGAME_PSTS[i][square];
+		}
+
+		thisBoard = pieceBitboards[i + 6];
+		while (thisBoard != 0)
+		{
+			square = ClearAndGetLSB(thisBoard);
+			mgscore -= Constants::MIDDLEGAME_PSTS[i + 6][square];
+			escore -= Constants::ENDGAME_PSTS[i + 6][square];
+		}
+	}
+
+	return ((phase * mgscore + (24 - phase) * escore) / 24);
 }

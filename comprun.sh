@@ -17,7 +17,7 @@ make all_headers.h
 cd ..
 
 # Compile it and output to executable called 'app'
-g++ -std=c++11 app.cpp GUISquare.cpp GUIPiece.cpp main/main.o -I/Library/Frameworks/SDL2.framework/Headers -F/Library/Frameworks -framework SDL2 -o app
+g++ -std=c++11 app.cpp GUISquare.cpp GUIPiece.cpp GUI.cpp main/main.o -I/Library/Frameworks/SDL2.framework/Headers -F/Library/Frameworks -framework SDL2 -o app
 
 # clean up
 cd main
